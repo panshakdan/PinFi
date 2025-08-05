@@ -1,20 +1,20 @@
 # PinFi Smart Contract
 
-PinFi is a Clarity smart contract for Stacks that implements a non-fungible token (NFT) access and rewards system. It allows the contract owner to mint unique "PinFi Pass" NFTs, assign access levels, manage transferability, and distribute rewards to holders. Users can transfer, burn, and claim rewards based on their NFT ownership.
+PinFi is a Clarity smart contract for the Stacks blockchain that implements an NFT-based access and rewards system. It features advanced event logging, optimized token management, and robust administrative controls. The contract allows the owner to mint unique "PinFi Pass" NFTs, assign access levels, manage transferability, and distribute rewards to holders.
 
 ---
 
 ## Features
 
 - **NFT Minting:** Owner can mint unique PinFi Pass NFTs for users.
-- **Access Levels:** Each NFT can have an assigned access level.
-- **Transfer Control:** Owner can enable/disable transfer for each NFT.
-- **Rewards System:** Owner can distribute rewards to NFT holders; holders can claim rewards.
-- **Batch Rewards:** Owner can distribute rewards to up to 10 holders at once.
-- **Ownership Management:** Owner can transfer contract ownership.
-- **Pause/Unpause:** Owner can pause or unpause contract actions.
-- **Burn:** NFT holders can burn their tokens.
-- **Emergency Withdraw:** Owner can withdraw contract funds in emergencies.
+- **Access Levels:** Assign and manage access levels per token.
+- **Transfer Control:** Enable or disable transferability for each token.
+- **Rewards System:** Distribute and claim rewards tied to NFT ownership.
+- **Batch Rewards:** Distribute rewards to up to 10 holders at once.
+- **Event Logging:** All major operations emit detailed events with nonce, block height, and sender.
+- **Admin Controls:** Transfer contract ownership, pause/unpause contract, emergency withdrawal.
+- **Token Operations:** Transfer, burn, and manage tokens.
+- **Utility Functions:** Get user info and contract stats in a single call.
 
 ---
 
@@ -25,6 +25,7 @@ PinFi is a Clarity smart contract for Stacks that implements a non-fungible toke
 - `get-contract-owner`: Returns the contract owner.
 - `get-next-id`: Returns the next NFT token ID.
 - `is-contract-paused`: Checks if the contract is paused.
+- `get-event-nonce`: Returns the current event nonce.
 - `get-token-uri <token-id>`: Gets the metadata URI for a token.
 - `get-access-level <token-id>`: Gets the access level for a token.
 - `get-holder-rewards <holder>`: Gets the reward balance for a holder.
@@ -33,6 +34,8 @@ PinFi is a Clarity smart contract for Stacks that implements a non-fungible toke
 - `get-user-pinfi-count <user>`: Counts how many PinFi Pass NFTs a user owns (first 20).
 - `get-user-first-pinfi <user>`: Gets the first PinFi Pass NFT owned by a user.
 - `get-contract-balance`: Returns the contract's STX balance.
+- `get-user-info <user>`: Returns comprehensive user data (access, token count, first token, rewards).
+- `get-contract-stats`: Returns contract-wide statistics and status.
 
 ### Public
 
@@ -52,13 +55,20 @@ PinFi is a Clarity smart contract for Stacks that implements a non-fungible toke
 
 ---
 
-## Usage
+## Event Types
 
-1. **Deploy the contract** to the Stacks blockchain.
-2. **Mint NFTs** for users using `mint-pinfi-pass`.
-3. **Assign metadata and access levels** with `set-token-uri` and `set-access-level`.
-4. **Distribute rewards** to holders using `distribute-rewards` or `batch-distribute-rewards`.
-5. **Users can claim rewards** with `claim-rewards` and transfer/burn their NFTs as allowed.
+- `MINT`: Token minting
+- `URI_SET`: Metadata updates
+- `ACCESS_LEVEL_SET`: Access level changes
+- `TRANSFER_STATUS_SET`: Transfer permission updates
+- `TRANSFER`: Token transfers
+- `REWARD_DISTRIBUTED`: Reward distribution
+- `REWARD_CLAIMED`: Reward claims
+- `BATCH_REWARD_START`: Batch reward operations
+- `EMERGENCY_WITHDRAW`: Emergency withdrawals
+- `BURN`: Token burning
+- `OWNERSHIP_TRANSFERRED`: Owner changes
+- `CONTRACT_PAUSED` / `CONTRACT_UNPAUSED`: State changes
 
 ---
 
@@ -78,6 +88,26 @@ PinFi is a Clarity smart contract for Stacks that implements a non-fungible toke
 
 ---
 
+## Technical Highlights
+
+- **Event Logging:** Every major action emits a structured event for transparency and traceability.
+- **Optimized Iteration:** Uses fixed token lists for efficient access checks and counting.
+- **Security:** Extensive validation and error handling for all operations.
+- **Gas Efficiency:** Optimized fold operations and batch processing.
+- **Comprehensive Utility:** Functions for both user and contract-wide insights.
+
+---
+
+## Usage
+
+1. **Deploy the contract** to the Stacks blockchain.
+2. **Mint NFTs** for users using `mint-pinfi-pass`.
+3. **Assign metadata and access levels** with `set-token-uri` and `set-access-level`.
+4. **Distribute rewards** to holders using `distribute-rewards` or `batch-distribute-rewards`.
+5. **Users can claim rewards** with `claim-rewards` and transfer/burn their NFTs as allowed.
+
+---
+
 ## License
 
 This project is provided for educational and demonstration purposes. Please review and audit before deploying to mainnet.
@@ -87,3 +117,5 @@ This project is provided for educational and demonstration purposes. Please revi
 ## Author
 
 PinFi Smart Contract by [panshak danladi]
+
+[Last updated: August 1, 2025]
