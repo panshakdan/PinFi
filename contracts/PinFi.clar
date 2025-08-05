@@ -15,6 +15,7 @@
 (define-data-var contract-owner principal tx-sender)
 (define-data-var next-id uint u1)
 (define-data-var contract-paused bool false)
+(define-data-var event-nonce uint u0)
 
 ;; ===== NFT DEFINITION =====
 (define-non-fungible-token pinfi-pass uint)
@@ -24,6 +25,31 @@
 (define-map holder-rewards principal uint)
 (define-map transfer-enabled uint bool)
 (define-map access-levels uint uint)
+
+;; ===== EVENT LOGGING SYSTEM =====
+(define-private (emit-event (event-type (string-ascii 32)) (token-id uint) (user principal) (amount uint))
+    (let ((nonce (var-get event-nonce)))
+        (var-set event-nonce (+ nonce u1))
+        (print {
+            event: event-type,
+            token-id: token-id,
+            user: user,
+            amount: amount,
+            nonce: nonce,
+            block-height: stacks-block-height,
+            tx-sender: tx-sender
+        })))
+
+(define-private (emit-simple-event (event-type (string-ascii 32)) (data uint))
+    (let ((nonce (var-get event-nonce)))
+        (var-set event-nonce (+ nonce u1))
+        (print {
+            event: event-type,
+            data: data,
+            nonce: nonce,
+            block-height: stacks-block-height,
+            tx-sender: tx-sender
+        })))
 
 ;; ===== PRIVATE HELPER FUNCTIONS =====
 (define-private (is-contract-owner)
@@ -52,6 +78,53 @@
         owner (is-eq owner user)
         false))
 
+;; ===== FIXED DYNAMIC TOKEN ITERATION HELPERS =====
+;; Predefined token lists for different ranges
+(define-constant TOKEN-LIST-5 (list u1 u2 u3 u4 u5))
+(define-constant TOKEN-LIST-10 (list u1 u2 u3 u4 u5 u6 u7 u8 u9 u10))
+(define-constant TOKEN-LIST-15 (list u1 u2 u3 u4 u5 u6 u7 u8 u9 u10 u11 u12 u13 u14 u15))
+(define-constant TOKEN-LIST-20 (list u1 u2 u3 u4 u5 u6 u7 u8 u9 u10 u11 u12 u13 u14 u15 u16 u17 u18 u19 u20))
+(define-constant TOKEN-LIST-25 (list u1 u2 u3 u4 u5 u6 u7 u8 u9 u10 u11 u12 u13 u14 u15 u16 u17 u18 u19 u20 u21 u22 u23 u24 u25))
+(define-constant TOKEN-LIST-30 (list u1 u2 u3 u4 u5 u6 u7 u8 u9 u10 u11 u12 u13 u14 u15 u16 u17 u18 u19 u20 u21 u22 u23 u24 u25 u26 u27 u28 u29 u30))
+
+;; Fixed create-token-range function using simple conditionals
+(define-private (create-token-range (max-id uint))
+    (if (<= max-id u1) 
+        (list)
+        (if (<= max-id u5)
+            TOKEN-LIST-5
+            (if (<= max-id u10)
+                TOKEN-LIST-10
+                (if (<= max-id u15)
+                    TOKEN-LIST-15
+                    (if (<= max-id u20)
+                        TOKEN-LIST-20
+                        (if (<= max-id u25)
+                            TOKEN-LIST-25
+                            TOKEN-LIST-30)))))))
+
+;; Fold helper for checking ownership
+(define-private (check-ownership-fold (token-id uint) (acc {user: principal, found: bool}))
+    (if (get found acc)
+        acc
+        {user: (get user acc), 
+         found: (is-token-owner token-id (get user acc))}))
+
+;; Fold helper for counting tokens
+(define-private (count-tokens-fold (token-id uint) (acc {user: principal, count: uint}))
+    {user: (get user acc),
+     count: (+ (get count acc) 
+              (if (is-token-owner token-id (get user acc)) u1 u0))})
+
+;; Fold helper for finding first token
+(define-private (find-first-token-fold (token-id uint) (acc {user: principal, first-token: (optional uint)}))
+    (if (is-some (get first-token acc))
+        acc
+        {user: (get user acc),
+         first-token: (if (is-token-owner token-id (get user acc))
+                         (some token-id)
+                         none)}))
+
 ;; ===== READ-ONLY FUNCTIONS =====
 (define-read-only (get-contract-owner)
     (var-get contract-owner))
@@ -61,6 +134,9 @@
 
 (define-read-only (is-contract-paused)
     (var-get contract-paused))
+
+(define-read-only (get-event-nonce)
+    (var-get event-nonce))
 
 (define-read-only (get-token-uri (token-id uint))
     (begin
@@ -80,84 +156,30 @@
 (define-read-only (is-transfer-enabled (token-id uint))
     (default-to true (map-get? transfer-enabled token-id)))
 
-;; Fixed has-access function - pure read-only implementation
+;; ===== IMPROVED DYNAMIC ACCESS FUNCTIONS =====
+;; Improved has-access function using fold
 (define-read-only (has-pinfi-access (user principal))
-    (let ((max-id (var-get next-id)))
+    (let ((max-id (var-get next-id))
+          (token-list (create-token-range max-id)))
         (if (is-eq max-id u1)
             false
-            (or (and (>= max-id u1) (is-token-owner u1 user))
-                (and (>= max-id u2) (is-token-owner u2 user))
-                (and (>= max-id u3) (is-token-owner u3 user))
-                (and (>= max-id u4) (is-token-owner u4 user))
-                (and (>= max-id u5) (is-token-owner u5 user))
-                (and (>= max-id u6) (is-token-owner u6 user))
-                (and (>= max-id u7) (is-token-owner u7 user))
-                (and (>= max-id u8) (is-token-owner u8 user))
-                (and (>= max-id u9) (is-token-owner u9 user))
-                (and (>= max-id u10) (is-token-owner u10 user))
-                (and (>= max-id u11) (is-token-owner u11 user))
-                (and (>= max-id u12) (is-token-owner u12 user))
-                (and (>= max-id u13) (is-token-owner u13 user))
-                (and (>= max-id u14) (is-token-owner u14 user))
-                (and (>= max-id u15) (is-token-owner u15 user))
-                (and (>= max-id u16) (is-token-owner u16 user))
-                (and (>= max-id u17) (is-token-owner u17 user))
-                (and (>= max-id u18) (is-token-owner u18 user))
-                (and (>= max-id u19) (is-token-owner u19 user))
-                (and (>= max-id u20) (is-token-owner u20 user))))))
+            (get found (fold check-ownership-fold token-list {user: user, found: false})))))
 
-;; Count user tokens - pure read-only
+;; Improved token count using fold
 (define-read-only (get-user-pinfi-count (user principal))
-    (let ((max-id (var-get next-id)))
+    (let ((max-id (var-get next-id))
+          (token-list (create-token-range max-id)))
         (if (is-eq max-id u1)
             u0
-            (+ (if (and (>= max-id u1) (is-token-owner u1 user)) u1 u0)
-               (if (and (>= max-id u2) (is-token-owner u2 user)) u1 u0)
-               (if (and (>= max-id u3) (is-token-owner u3 user)) u1 u0)
-               (if (and (>= max-id u4) (is-token-owner u4 user)) u1 u0)
-               (if (and (>= max-id u5) (is-token-owner u5 user)) u1 u0)
-               (if (and (>= max-id u6) (is-token-owner u6 user)) u1 u0)
-               (if (and (>= max-id u7) (is-token-owner u7 user)) u1 u0)
-               (if (and (>= max-id u8) (is-token-owner u8 user)) u1 u0)
-               (if (and (>= max-id u9) (is-token-owner u9 user)) u1 u0)
-               (if (and (>= max-id u10) (is-token-owner u10 user)) u1 u0)
-               (if (and (>= max-id u11) (is-token-owner u11 user)) u1 u0)
-               (if (and (>= max-id u12) (is-token-owner u12 user)) u1 u0)
-               (if (and (>= max-id u13) (is-token-owner u13 user)) u1 u0)
-               (if (and (>= max-id u14) (is-token-owner u14 user)) u1 u0)
-               (if (and (>= max-id u15) (is-token-owner u15 user)) u1 u0)
-               (if (and (>= max-id u16) (is-token-owner u16 user)) u1 u0)
-               (if (and (>= max-id u17) (is-token-owner u17 user)) u1 u0)
-               (if (and (>= max-id u18) (is-token-owner u18 user)) u1 u0)
-               (if (and (>= max-id u19) (is-token-owner u19 user)) u1 u0)
-               (if (and (>= max-id u20) (is-token-owner u20 user)) u1 u0)))))
+            (get count (fold count-tokens-fold token-list {user: user, count: u0})))))
 
-;; Get first token owned by user - pure read-only
+;; Improved first token finder using fold
 (define-read-only (get-user-first-pinfi (user principal))
-    (let ((max-id (var-get next-id)))
+    (let ((max-id (var-get next-id))
+          (token-list (create-token-range max-id)))
         (if (is-eq max-id u1)
             none
-            (if (and (>= max-id u1) (is-token-owner u1 user)) (some u1)
-            (if (and (>= max-id u2) (is-token-owner u2 user)) (some u2)
-            (if (and (>= max-id u3) (is-token-owner u3 user)) (some u3)
-            (if (and (>= max-id u4) (is-token-owner u4 user)) (some u4)
-            (if (and (>= max-id u5) (is-token-owner u5 user)) (some u5)
-            (if (and (>= max-id u6) (is-token-owner u6 user)) (some u6)
-            (if (and (>= max-id u7) (is-token-owner u7 user)) (some u7)
-            (if (and (>= max-id u8) (is-token-owner u8 user)) (some u8)
-            (if (and (>= max-id u9) (is-token-owner u9 user)) (some u9)
-            (if (and (>= max-id u10) (is-token-owner u10 user)) (some u10)
-            (if (and (>= max-id u11) (is-token-owner u11 user)) (some u11)
-            (if (and (>= max-id u12) (is-token-owner u12 user)) (some u12)
-            (if (and (>= max-id u13) (is-token-owner u13 user)) (some u13)
-            (if (and (>= max-id u14) (is-token-owner u14 user)) (some u14)
-            (if (and (>= max-id u15) (is-token-owner u15 user)) (some u15)
-            (if (and (>= max-id u16) (is-token-owner u16 user)) (some u16)
-            (if (and (>= max-id u17) (is-token-owner u17 user)) (some u17)
-            (if (and (>= max-id u18) (is-token-owner u18 user)) (some u18)
-            (if (and (>= max-id u19) (is-token-owner u19 user)) (some u19)
-            (if (and (>= max-id u20) (is-token-owner u20 user)) (some u20)
-            none)))))))))))))))))))))))
+            (get first-token (fold find-first-token-fold token-list {user: user, first-token: none})))))
 
 ;; ===== ADMIN FUNCTIONS =====
 (define-public (transfer-ownership (new-owner principal))
@@ -165,17 +187,23 @@
         (asserts! (is-contract-owner) ERR-NOT-AUTHORIZED)
         (asserts! (is-valid-principal new-owner) ERR-INVALID-PRINCIPAL)
         (asserts! (not (is-eq new-owner (var-get contract-owner))) ERR-INVALID-PRINCIPAL)
-        (ok (var-set contract-owner new-owner))))
+        (var-set contract-owner new-owner)
+        (emit-simple-event "OWNERSHIP_TRANSFERRED" u0)
+        (ok true)))
 
 (define-public (pause-contract)
     (begin
         (asserts! (is-contract-owner) ERR-NOT-AUTHORIZED)
-        (ok (var-set contract-paused true))))
+        (var-set contract-paused true)
+        (emit-simple-event "CONTRACT_PAUSED" u1)
+        (ok true)))
 
 (define-public (unpause-contract)
     (begin
         (asserts! (is-contract-owner) ERR-NOT-AUTHORIZED)
-        (ok (var-set contract-paused false))))
+        (var-set contract-paused false)
+        (emit-simple-event "CONTRACT_UNPAUSED" u0)
+        (ok true)))
 
 ;; ===== NFT FUNCTIONS =====
 (define-public (mint-pinfi-pass (recipient principal))
@@ -187,6 +215,7 @@
             (begin
                 (var-set next-id (+ id u1))
                 (try! (nft-mint? pinfi-pass id recipient))
+                (emit-event "MINT" id recipient u0)
                 (ok id)))))
 
 (define-public (set-token-uri (token-id uint) (uri (string-ascii 256)))
@@ -195,7 +224,9 @@
         (asserts! (is-valid-token-id token-id) ERR-INVALID-TOKEN-ID)
         (asserts! (token-exists token-id) ERR-TOKEN-NOT-FOUND)
         (asserts! (is-valid-uri uri) ERR-INVALID-URI)
-        (ok (map-set token-uri token-id uri))))
+        (map-set token-uri token-id uri)
+        (emit-event "URI_SET" token-id tx-sender u0)
+        (ok true)))
 
 (define-public (set-access-level (token-id uint) (level uint))
     (begin
@@ -203,16 +234,20 @@
         (asserts! (is-valid-token-id token-id) ERR-INVALID-TOKEN-ID)
         (asserts! (token-exists token-id) ERR-TOKEN-NOT-FOUND)
         (asserts! (is-valid-level level) ERR-INVALID-LEVEL)
-        (ok (map-set access-levels token-id level))))
+        (map-set access-levels token-id level)
+        (emit-event "ACCESS_LEVEL_SET" token-id tx-sender level)
+        (ok true)))
 
 (define-public (set-transfer-status (token-id uint) (enabled bool))
     (begin
         (asserts! (is-contract-owner) ERR-NOT-AUTHORIZED)
         (asserts! (is-valid-token-id token-id) ERR-INVALID-TOKEN-ID)
         (asserts! (token-exists token-id) ERR-TOKEN-NOT-FOUND)
-        (ok (map-set transfer-enabled token-id enabled))))
+        (map-set transfer-enabled token-id enabled)
+        (emit-event "TRANSFER_STATUS_SET" token-id tx-sender (if enabled u1 u0))
+        (ok true)))
 
-;; Fixed transfer function with proper ownership verification
+;; Enhanced transfer function with event logging
 (define-public (transfer (token-id uint) (sender principal) (recipient principal))
     (begin
         (asserts! (not (var-get contract-paused)) ERR-NOT-AUTHORIZED)
@@ -224,64 +259,91 @@
         (asserts! (is-token-owner token-id sender) ERR-NOT-TOKEN-OWNER)
         (asserts! (is-transfer-enabled token-id) ERR-TRANSFER-DISABLED)
         (try! (nft-transfer? pinfi-pass token-id sender recipient))
+        (emit-event "TRANSFER" token-id recipient u0)
         (ok true)))
 
 ;; ===== REWARD SYSTEM =====
-;; Fixed distribute-rewards with direct access verification
+;; Enhanced distribute-rewards with event logging
 (define-public (distribute-rewards (holder principal) (amount uint))
     (begin
         (asserts! (is-contract-owner) ERR-NOT-AUTHORIZED)
         (asserts! (is-valid-amount amount) ERR-INVALID-AMOUNT)
         (asserts! (is-valid-principal holder) ERR-INVALID-PRINCIPAL)
-        ;; Direct access check without circular dependency
         (asserts! (is-some (get-user-first-pinfi holder)) ERR-NO-ACCESS)
-        (ok (map-set holder-rewards holder 
-            (+ (default-to u0 (map-get? holder-rewards holder)) amount)))))
+        (map-set holder-rewards holder 
+            (+ (default-to u0 (map-get? holder-rewards holder)) amount))
+        (emit-event "REWARD_DISTRIBUTED" u0 holder amount)
+        (ok true)))
 
-;; Fixed claim-rewards with direct access verification
+;; Enhanced claim-rewards with event logging
 (define-public (claim-rewards (amount uint))
     (begin
         (asserts! (not (var-get contract-paused)) ERR-NOT-AUTHORIZED)
-        ;; Direct access check without circular dependency
         (asserts! (is-some (get-user-first-pinfi tx-sender)) ERR-NO-ACCESS)
         (asserts! (is-valid-amount amount) ERR-INVALID-AMOUNT)
         (let ((current-balance (default-to u0 (map-get? holder-rewards tx-sender))))
             (asserts! (>= current-balance amount) ERR-INSUFFICIENT-BALANCE)
             (try! (stx-transfer? amount (as-contract tx-sender) tx-sender))
             (map-set holder-rewards tx-sender (- current-balance amount))
+            (emit-event "REWARD_CLAIMED" u0 tx-sender amount)
             (ok true))))
 
-;; Batch reward distribution - removed circular dependency
+;; Enhanced batch reward distribution with event logging
 (define-public (batch-distribute-rewards (holders (list 10 principal)) (amount uint))
     (begin
         (asserts! (is-contract-owner) ERR-NOT-AUTHORIZED)
         (asserts! (is-valid-amount amount) ERR-INVALID-AMOUNT)
+        (emit-event "BATCH_REWARD_START" u0 tx-sender amount)
         (ok (map distribute-reward-to-holder holders))))
 
-;; Helper function without circular dependency
+;; Helper function for batch distribution
 (define-private (distribute-reward-to-holder (holder principal))
     (if (is-some (get-user-first-pinfi holder))
-        (map-set holder-rewards holder 
-            (+ (default-to u0 (map-get? holder-rewards holder)) u1))
+        (begin
+            (map-set holder-rewards holder 
+                (+ (default-to u0 (map-get? holder-rewards holder)) u1))
+            true)
         false))
 
-;; Emergency functions
+;; Enhanced emergency functions with event logging
 (define-public (emergency-withdraw (amount uint))
     (begin
         (asserts! (is-contract-owner) ERR-NOT-AUTHORIZED)
         (asserts! (is-valid-amount amount) ERR-INVALID-AMOUNT)
         (try! (stx-transfer? amount (as-contract tx-sender) (var-get contract-owner)))
+        (emit-event "EMERGENCY_WITHDRAW" u0 (var-get contract-owner) amount)
         (ok true)))
 
-;; Utility function to check contract balance
+;; ===== UTILITY FUNCTIONS =====
 (define-read-only (get-contract-balance)
     (stx-get-balance (as-contract tx-sender)))
 
-;; Burn function for completeness
+;; Enhanced burn function with event logging
 (define-public (burn (token-id uint))
     (begin
         (asserts! (is-valid-token-id token-id) ERR-INVALID-TOKEN-ID)
         (asserts! (token-exists token-id) ERR-TOKEN-NOT-FOUND)
         (asserts! (is-token-owner token-id tx-sender) ERR-NOT-TOKEN-OWNER)
         (try! (nft-burn? pinfi-pass token-id tx-sender))
+        (emit-event "BURN" token-id tx-sender u0)
         (ok true)))
+
+;; ===== ADDITIONAL UTILITY FUNCTIONS =====
+;; Get comprehensive user info
+(define-read-only (get-user-info (user principal))
+    {
+        has-access: (has-pinfi-access user),
+        token-count: (get-user-pinfi-count user),
+        first-token: (get-user-first-pinfi user),
+        reward-balance: (get-holder-rewards user)
+    })
+
+;; Get contract stats
+(define-read-only (get-contract-stats)
+    {
+        total-tokens: (- (var-get next-id) u1),
+        contract-balance: (get-contract-balance),
+        is-paused: (var-get contract-paused),
+        owner: (var-get contract-owner),
+        event-count: (var-get event-nonce)
+    })
