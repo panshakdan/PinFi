@@ -288,22 +288,33 @@
             (emit-event "REWARD_CLAIMED" u0 tx-sender amount)
             (ok true))))
 
-;; Enhanced batch reward distribution with event logging
+;; FIXED: Helper function that takes only holder parameter and uses data-var for amount
+(define-data-var batch-amount uint u0)
+
+(define-private (distribute-reward-to-holder (holder principal))
+    (let ((amt (var-get batch-amount)))
+        (if (and (is-valid-principal holder) (is-some (get-user-first-pinfi holder)))
+            (begin
+                (map-set holder-rewards holder 
+                    (+ (default-to u0 (map-get? holder-rewards holder)) amt))
+                (emit-event "REWARD_DISTRIBUTED" u0 holder amt)
+                true)
+            false)))
+
+;; FIXED: Enhanced batch reward distribution using data-var approach
 (define-public (batch-distribute-rewards (holders (list 10 principal)) (amount uint))
     (begin
         (asserts! (is-contract-owner) ERR-NOT-AUTHORIZED)
         (asserts! (is-valid-amount amount) ERR-INVALID-AMOUNT)
-        (emit-event "BATCH_REWARD_START" u0 tx-sender amount)
-        (ok (map distribute-reward-to-holder holders))))
-
-;; Helper function for batch distribution
-(define-private (distribute-reward-to-holder (holder principal))
-    (if (is-some (get-user-first-pinfi holder))
-        (begin
-            (map-set holder-rewards holder 
-                (+ (default-to u0 (map-get? holder-rewards holder)) u1))
-            true)
-        false))
+        ;; Calculate total amount needed for all holders
+        (let ((total-needed (* amount (len holders))))
+            ;; Ensure contract has sufficient balance for total distribution
+            (asserts! (>= (stx-get-balance (as-contract tx-sender)) total-needed) ERR-INSUFFICIENT-BALANCE)
+            ;; Set the batch amount in data-var
+            (var-set batch-amount amount)
+            (emit-event "BATCH_REWARD_START" u0 tx-sender amount)
+            ;; Use map with single-parameter function
+            (ok (map distribute-reward-to-holder holders)))))
 
 ;; Enhanced emergency functions with event logging
 (define-public (emergency-withdraw (amount uint))
@@ -347,3 +358,15 @@
         owner: (var-get contract-owner),
         event-count: (var-get event-nonce)
     })
+
+;; ADDED: Utility function to simulate batch distribution before execution
+(define-read-only (simulate-batch-distribution (holders (list 10 principal)) (amount uint))
+    (let ((total-needed (* amount (len holders)))
+          (current-balance (stx-get-balance (as-contract tx-sender))))
+        {
+            total-holders: (len holders),
+            amount-per-holder: amount,
+            total-needed: total-needed,
+            contract-balance: current-balance,
+            sufficient-funds: (>= current-balance total-needed)
+        }))
